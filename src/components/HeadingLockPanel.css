@@ -1,0 +1,200 @@
+.hlp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 4px 6px;
+}
+
+/* ── Lock status badge ──────────────────────────────────────────────────── */
+
+.hlp__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.hlp__badge--locked {
+  background: rgba(72, 187, 120, 0.15);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.hlp__badge--unlocked {
+  background: rgba(74, 111, 165, 0.1);
+  border-color: var(--border-light);
+  color: var(--text-dim);
+}
+
+.hlp__badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hlp__badge--locked   .hlp__badge-dot { background: var(--success); box-shadow: 0 0 5px var(--success); }
+.hlp__badge--unlocked .hlp__badge-dot { background: var(--text-dim); }
+
+/* ── Heading readouts ───────────────────────────────────────────────────── */
+
+.hlp__readings {
+  display: flex;
+  gap: 1.4rem;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.hlp__field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.hlp__field-label {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.hlp__field-value {
+  font-family: var(--font-mono);
+  font-weight: bold;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  color: var(--accent-light);
+  line-height: 1;
+}
+
+.hlp__field-value--locked {
+  color: var(--success);
+}
+
+.hlp__field-value--error-pos { color: #f6ad55; }
+.hlp__field-value--error-neg { color: #76e4f7; }
+.hlp__field-value--error-zero { color: var(--success); }
+
+/* ── Servo position bar ─────────────────────────────────────────────────── */
+
+.hlp__servo {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.hlp__servo-label {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.hlp__servo-track {
+  width: 90%;
+  height: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  position: relative;
+  overflow: visible;
+}
+
+/* Centre line */
+.hlp__servo-track::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-light);
+  transform: translateX(-50%);
+}
+
+.hlp__servo-thumb {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 16px;
+  background: var(--accent);
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  transition: left 0.1s linear;
+  box-shadow: 0 0 4px rgba(30,111,200,0.6);
+}
+
+.hlp__servo-thumb--active {
+  background: var(--success);
+  box-shadow: 0 0 6px rgba(72,187,120,0.7);
+}
+
+.hlp__servo-value {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+}
+
+/* ── Control buttons ────────────────────────────────────────────────────── */
+
+.hlp__controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.hlp__btn {
+  flex: 1;
+  max-width: 90px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-light);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 7px 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  line-height: 1;
+}
+
+.hlp__btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--accent);
+  color: var(--accent-light);
+}
+
+.hlp__btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.hlp__btn--on {
+  background: rgba(72, 187, 120, 0.15);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.hlp__btn--on:hover:not(:disabled) {
+  background: rgba(72, 187, 120, 0.25);
+  border-color: var(--success);
+  color: var(--success);
+}
