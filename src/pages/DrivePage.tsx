@@ -1,13 +1,12 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useBoatStore } from '@/store/boatStore'
 import { boatWS } from '@/services/boatWebSocket'
 import './DrivePage.css'
 
 // ============================================================
 //  VerticalSlider
-//  A custom touch-friendly vertical slider (0 – 255).
-//  Uses pointer events + setPointerCapture so dragging works
-//  even when the finger moves outside the track.
+//  Visuals are driven only through DOM refs so 10 Hz telemetry
+//  re-renders (in a sibling) cannot yank the thumb back.
 // ============================================================
 
 interface SliderProps {
@@ -16,50 +15,78 @@ interface SliderProps {
   label: string
 }
 
-function VerticalSlider({ value, onChange, label }: SliderProps) {
-  const trackRef   = useRef<HTMLDivElement>(null)
-  const fillRef    = useRef<HTMLDivElement>(null)
-  const thumbRef   = useRef<HTMLDivElement>(null)
-  const valueLabel = useRef<HTMLDivElement>(null)
-  const isDragging = useRef(false)
+// How often we commit a dragged value to React state / WebSocket.
+const COMMIT_INTERVAL_MS = 80
 
-  // Update fill, thumb, and label directly in the DOM — no React re-render
-  // needed, so the slider tracks the finger instantly with zero lag.
+function VerticalSlider({ value, onChange, label }: SliderProps) {
+  const trackRef      = useRef<HTMLDivElement>(null)
+  const fillRef       = useRef<HTMLDivElement>(null)
+  const thumbRef      = useRef<HTMLDivElement>(null)
+  const valueLabel    = useRef<HTMLDivElement>(null)
+  const isDragging    = useRef(false)
+  const latestValue   = useRef(value)
+  const lastCommitted = useRef(value)
+  const commitTimer   = useRef<ReturnType<typeof setInterval> | null>(null)
+
   function applyVisuals(v: number) {
     const pct = (v / 255) * 100
-    if (fillRef.current)   fillRef.current.style.height  = `${pct}%`
-    if (thumbRef.current)  thumbRef.current.style.bottom = `${pct}%`
+    if (fillRef.current)    fillRef.current.style.height  = `${pct}%`
+    if (thumbRef.current)   thumbRef.current.style.bottom = `${pct}%`
     if (valueLabel.current) valueLabel.current.textContent = String(v)
   }
 
+  // Sync from parent only when the user is NOT dragging
+  // (e.g. STOP button zeros the sliders).
+  useEffect(() => {
+    if (isDragging.current) return
+    latestValue.current = value
+    lastCommitted.current = value
+    applyVisuals(value)
+  }, [value])
+
   function valueFromY(clientY: number): number {
     const track = trackRef.current
-    if (!track) return value
+    if (!track) return latestValue.current
     const rect  = track.getBoundingClientRect()
     const ratio = 1 - (clientY - rect.top) / rect.height
     return Math.round(Math.max(0, Math.min(255, ratio * 255)))
   }
 
+  function commit() {
+    if (latestValue.current !== lastCommitted.current) {
+      lastCommitted.current = latestValue.current
+      onChange(latestValue.current)
+    }
+  }
+
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
     isDragging.current = true
     const v = valueFromY(e.clientY)
+    latestValue.current = v
     applyVisuals(v)
-    onChange(v)
+    commit()
+
+    if (commitTimer.current) clearInterval(commitTimer.current)
+    commitTimer.current = setInterval(commit, COMMIT_INTERVAL_MS)
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!isDragging.current) return
     const v = valueFromY(e.clientY)
+    latestValue.current = v
     applyVisuals(v)
-    onChange(v)
   }
 
   function onPointerUp() {
     isDragging.current = false
+    if (commitTimer.current) {
+      clearInterval(commitTimer.current)
+      commitTimer.current = null
+    }
+    commit()
   }
-
-  const pct = (value / 255) * 100
 
   return (
     <div className="vslider">
@@ -71,8 +98,9 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <div className="vslider__fill"  ref={fillRef}  style={{ height: `${pct}%` }} />
-        <div className="vslider__thumb" ref={thumbRef} style={{ bottom: `${pct}%` }} />
+        {/* Heights set only via refs — never via React style props */}
+        <div className="vslider__fill"  ref={fillRef}  />
+        <div className="vslider__thumb" ref={thumbRef} />
       </div>
       <div className="vslider__value" ref={valueLabel}>{value}</div>
       <div className="vslider__label">{label}</div>
@@ -81,108 +109,111 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
 }
 
 // ============================================================
-//  DrivePage — the only screen in the app
+//  TelemetryPanel — own store subscription so slider drags are
+//  not interrupted by heading/distance updates every 100 ms.
 // ============================================================
 
-export default function DrivePage() {
+function TelemetryPanel() {
   const { connectionStatus, heading, distance } = useBoatStore()
-
-  // Motor slider values (0–255), held in local state
-  const [leftPWM,  setLeftPWM]  = useState(0)
-  const [rightPWM, setRightPWM] = useState(0)
-
-  // Heading hold toggle — local state, sent to Arduino on each change
-  const [headingHoldOn, setHeadingHoldOn] = useState(false)
-
   const connected = connectionStatus === 'connected'
 
-  // ── Send a complete motor command to the Arduino ────────────────────────────
-  function sendCommand(left: number, right: number, hold: boolean) {
-    boatWS.sendCommand(left, right, hold)
-  }
-
-  // ── Slider handlers ─────────────────────────────────────────────────────────
-  function handleLeft(v: number) {
-    setLeftPWM(v)
-    sendCommand(v, rightPWM, headingHoldOn)
-  }
-
-  function handleRight(v: number) {
-    setRightPWM(v)
-    sendCommand(leftPWM, v, headingHoldOn)
-  }
-
-  // ── Heading hold toggle ─────────────────────────────────────────────────────
-  function handleHeadingHold() {
-    const next = !headingHoldOn
-    setHeadingHoldOn(next)
-    sendCommand(leftPWM, rightPWM, next)
-  }
-
-  // ── Stop — zero both sliders and turn off heading hold ──────────────────────
-  function handleStop() {
-    setLeftPWM(0)
-    setRightPWM(0)
-    setHeadingHoldOn(false)
-    sendCommand(0, 0, false)
-  }
-
-  // ── Connection status pill ──────────────────────────────────────────────────
   const connLabel =
     connectionStatus === 'connected'  ? 'Connected'    :
     connectionStatus === 'connecting' ? 'Connecting…'  :
                                         'Disconnected'
 
   return (
-    <div className="drive-page">
-
-      {/* ═══════════════════════════════════════════════════════
-          UPPER HALF — telemetry display
-      ═══════════════════════════════════════════════════════ */}
-      <div className="telemetry-panel">
-
-        {/* WiFi status pill */}
-        <div className={`wifi-pill wifi-pill--${connectionStatus}`}>
-          {/* WiFi icon (SVG arcs) */}
-          <svg className="wifi-icon" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" strokeWidth="2.5"
-               strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12.55a11 11 0 0 1 14.08 0" />
-            <path d="M1.42 9a16 16 0 0 1 21.16 0" />
-            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
-            <circle cx="12" cy="20" r="1" fill="currentColor" stroke="none" />
-          </svg>
-          <span>{connLabel}</span>
-        </div>
-
-        {/* Compass heading */}
-        <div className="telemetry-group">
-          <span className="telemetry-label">HEADING</span>
-          <span className="telemetry-value telemetry-value--heading">
-            {connected ? `${heading.toFixed(1)}°` : '--°'}
-          </span>
-        </div>
-
-        {/* Sonar distance */}
-        <div className="telemetry-group">
-          <span className="telemetry-label">DISTANCE</span>
-          <span className="telemetry-value telemetry-value--distance">
-            {connected ? `${distance} cm` : '-- cm'}
-          </span>
-        </div>
-
+    <div className="telemetry-panel">
+      <div className={`wifi-pill wifi-pill--${connectionStatus}`}>
+        <svg className="wifi-icon" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" strokeWidth="2.5"
+             strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+          <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+          <circle cx="12" cy="20" r="1" fill="currentColor" stroke="none" />
+        </svg>
+        <span>{connLabel}</span>
       </div>
 
-      {/* Dividing line between the two halves */}
+      <div className="telemetry-group">
+        <span className="telemetry-label">HEADING</span>
+        <span className="telemetry-value telemetry-value--heading">
+          {connected ? `${heading.toFixed(1)}°` : '--°'}
+        </span>
+      </div>
+
+      <div className="telemetry-group">
+        <span className="telemetry-label">DISTANCE</span>
+        <span className="telemetry-value telemetry-value--distance">
+          {connected ? `${distance} cm` : '-- cm'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+//  DrivePage
+// ============================================================
+
+export default function DrivePage() {
+  const connectionStatus = useBoatStore((s) => s.connectionStatus)
+  const [leftPWM,  setLeftPWM]  = useState(0)
+  const [rightPWM, setRightPWM] = useState(0)
+  const [headingHoldOn, setHeadingHoldOn] = useState(false)
+
+  // Refs so each slider always sends the other motor's latest value
+  // without waiting on a React state round-trip.
+  const leftRef  = useRef(0)
+  const rightRef = useRef(0)
+  const holdRef  = useRef(false)
+
+  // Keepalive: re-send current motor values every 300 ms while connected.
+  // The Arduino stops motors if it hears nothing for ~800 ms (safety).
+  useEffect(() => {
+    if (connectionStatus !== 'connected') return
+    const id = setInterval(() => {
+      boatWS.sendCommand(leftRef.current, rightRef.current, holdRef.current)
+    }, 300)
+    return () => clearInterval(id)
+  }, [connectionStatus])
+
+  function handleLeft(v: number) {
+    leftRef.current = v
+    setLeftPWM(v)
+    boatWS.sendCommand(v, rightRef.current, holdRef.current)
+  }
+
+  function handleRight(v: number) {
+    rightRef.current = v
+    setRightPWM(v)
+    boatWS.sendCommand(leftRef.current, v, holdRef.current)
+  }
+
+  function handleHeadingHold() {
+    const next = !holdRef.current
+    holdRef.current = next
+    setHeadingHoldOn(next)
+    boatWS.sendCommand(leftRef.current, rightRef.current, next)
+  }
+
+  function handleStop() {
+    leftRef.current = 0
+    rightRef.current = 0
+    holdRef.current = false
+    setLeftPWM(0)
+    setRightPWM(0)
+    setHeadingHoldOn(false)
+    boatWS.sendCommand(0, 0, false)
+  }
+
+  return (
+    <div className="drive-page">
+      <TelemetryPanel />
       <div className="half-divider" />
-
-      {/* ═══════════════════════════════════════════════════════
-          LOWER HALF — motor controls
-      ═══════════════════════════════════════════════════════ */}
       <div className="controls-panel">
-
         <VerticalSlider value={leftPWM}  onChange={handleLeft}  label="LEFT"  />
-
         <div className="center-controls">
           <button
             className={`btn btn--hold ${headingHoldOn ? 'btn--hold-active' : ''}`}
@@ -194,9 +225,7 @@ export default function DrivePage() {
             STOP
           </button>
         </div>
-
         <VerticalSlider value={rightPWM} onChange={handleRight} label="RIGHT" />
-
       </div>
     </div>
   )

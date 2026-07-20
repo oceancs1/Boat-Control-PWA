@@ -141,10 +141,10 @@
   bottom: 0;
   left: 0;
   right: 0;
+  height: 0;
   background: linear-gradient(to top, #1565c0, #2196f3);
   border-radius: 5px;
   pointer-events: none;
-  transition: height 30ms linear;
 }
 
 /* Circular thumb — centered on the fill level */
@@ -159,7 +159,7 @@
   box-shadow: 0 0 0 5px rgba(33, 150, 243, 0.25),
               0 2px 8px rgba(0, 0, 0, 0.5);
   pointer-events: none;
-  transition: bottom 30ms linear;
+  bottom: 0;
 }
 
 .vslider__value {
