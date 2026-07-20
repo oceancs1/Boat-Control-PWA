@@ -15,8 +15,9 @@ interface SliderProps {
   label: string
 }
 
-// How often we commit a dragged value to React state / WebSocket.
-const COMMIT_INTERVAL_MS = 80
+// Send motor commands quickly while dragging; keepalive handles held positions.
+const COMMIT_INTERVAL_MS = 40
+const MOVE_SEND_MS       = 50
 
 function VerticalSlider({ value, onChange, label }: SliderProps) {
   const trackRef      = useRef<HTMLDivElement>(null)
@@ -26,6 +27,7 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
   const isDragging    = useRef(false)
   const latestValue   = useRef(value)
   const lastCommitted = useRef(value)
+  const lastSendMs    = useRef(0)
   const commitTimer   = useRef<ReturnType<typeof setInterval> | null>(null)
 
   function applyVisuals(v: number) {
@@ -52,9 +54,12 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
     return Math.round(Math.max(0, Math.min(255, ratio * 255)))
   }
 
-  function commit() {
-    if (latestValue.current !== lastCommitted.current) {
+  function commit(force = false) {
+    const now = Date.now()
+    if (!force && now - lastSendMs.current < MOVE_SEND_MS) return
+    if (latestValue.current !== lastCommitted.current || force) {
       lastCommitted.current = latestValue.current
+      lastSendMs.current = now
       onChange(latestValue.current)
     }
   }
@@ -66,7 +71,7 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
     const v = valueFromY(e.clientY)
     latestValue.current = v
     applyVisuals(v)
-    commit()
+    commit(true)
 
     if (commitTimer.current) clearInterval(commitTimer.current)
     commitTimer.current = setInterval(commit, COMMIT_INTERVAL_MS)
@@ -77,6 +82,7 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
     const v = valueFromY(e.clientY)
     latestValue.current = v
     applyVisuals(v)
+    commit()
   }
 
   function onPointerUp() {
@@ -85,7 +91,7 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
       clearInterval(commitTimer.current)
       commitTimer.current = null
     }
-    commit()
+    commit(true)
   }
 
   return (
@@ -169,13 +175,12 @@ export default function DrivePage() {
   const rightRef = useRef(0)
   const holdRef  = useRef(false)
 
-  // Keepalive: re-send current motor values every 300 ms while connected.
-  // The Arduino stops motors if it hears nothing for ~800 ms (safety).
+  // Keepalive: re-send current motor values while connected.
   useEffect(() => {
     if (connectionStatus !== 'connected') return
     const id = setInterval(() => {
       boatWS.sendCommand(leftRef.current, rightRef.current, holdRef.current)
-    }, 300)
+    }, 250)
     return () => clearInterval(id)
   }, [connectionStatus])
 
