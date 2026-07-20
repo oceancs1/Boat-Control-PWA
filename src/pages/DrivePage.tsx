@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useBoatStore } from '@/store/boatStore'
 import { boatWS } from '@/services/boatWebSocket'
 import './DrivePage.css'
@@ -18,34 +18,48 @@ interface SliderProps {
 
 function VerticalSlider({ value, onChange, label }: SliderProps) {
   const trackRef   = useRef<HTMLDivElement>(null)
+  const fillRef    = useRef<HTMLDivElement>(null)
+  const thumbRef   = useRef<HTMLDivElement>(null)
+  const valueLabel = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
 
-  // Convert a clientY screen coordinate to a 0–255 value.
-  // 0 is at the bottom of the track, 255 is at the top.
-  const valueFromY = useCallback((clientY: number): number => {
+  // Update fill, thumb, and label directly in the DOM — no React re-render
+  // needed, so the slider tracks the finger instantly with zero lag.
+  function applyVisuals(v: number) {
+    const pct = (v / 255) * 100
+    if (fillRef.current)   fillRef.current.style.height  = `${pct}%`
+    if (thumbRef.current)  thumbRef.current.style.bottom = `${pct}%`
+    if (valueLabel.current) valueLabel.current.textContent = String(v)
+  }
+
+  function valueFromY(clientY: number): number {
     const track = trackRef.current
     if (!track) return value
-    const rect = track.getBoundingClientRect()
+    const rect  = track.getBoundingClientRect()
     const ratio = 1 - (clientY - rect.top) / rect.height
     return Math.round(Math.max(0, Math.min(255, ratio * 255)))
-  }, [value])
+  }
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     e.currentTarget.setPointerCapture(e.pointerId)
     isDragging.current = true
-    onChange(valueFromY(e.clientY))
+    const v = valueFromY(e.clientY)
+    applyVisuals(v)
+    onChange(v)
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!isDragging.current) return
-    onChange(valueFromY(e.clientY))
+    const v = valueFromY(e.clientY)
+    applyVisuals(v)
+    onChange(v)
   }
 
   function onPointerUp() {
     isDragging.current = false
   }
 
-  const pct = (value / 255) * 100   // 0–100 for CSS percentage
+  const pct = (value / 255) * 100
 
   return (
     <div className="vslider">
@@ -57,12 +71,10 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        {/* Blue fill from the bottom up */}
-        <div className="vslider__fill" style={{ height: `${pct}%` }} />
-        {/* Draggable thumb */}
-        <div className="vslider__thumb" style={{ bottom: `${pct}%` }} />
+        <div className="vslider__fill"  ref={fillRef}  style={{ height: `${pct}%` }} />
+        <div className="vslider__thumb" ref={thumbRef} style={{ bottom: `${pct}%` }} />
       </div>
-      <div className="vslider__value">{value}</div>
+      <div className="vslider__value" ref={valueLabel}>{value}</div>
       <div className="vslider__label">{label}</div>
     </div>
   )
