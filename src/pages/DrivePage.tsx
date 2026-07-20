@@ -17,7 +17,8 @@ interface SliderProps {
 }
 
 function VerticalSlider({ value, onChange, label }: SliderProps) {
-  const trackRef = useRef<HTMLDivElement>(null)
+  const trackRef   = useRef<HTMLDivElement>(null)
+  const isDragging = useRef(false)
 
   // Convert a clientY screen coordinate to a 0–255 value.
   // 0 is at the bottom of the track, 255 is at the top.
@@ -30,14 +31,18 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
   }, [value])
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    // Capture keeps the pointer locked to this element during drag
     e.currentTarget.setPointerCapture(e.pointerId)
+    isDragging.current = true
     onChange(valueFromY(e.clientY))
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!(e.buttons & 1)) return   // Only move when primary button/finger is down
+    if (!isDragging.current) return
     onChange(valueFromY(e.clientY))
+  }
+
+  function onPointerUp() {
+    isDragging.current = false
   }
 
   const pct = (value / 255) * 100   // 0–100 for CSS percentage
@@ -49,6 +54,8 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
         ref={trackRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
       >
         {/* Blue fill from the bottom up */}
         <div className="vslider__fill" style={{ height: `${pct}%` }} />
