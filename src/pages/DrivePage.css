@@ -196,20 +196,35 @@
 .center-controls {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  justify-content: space-evenly;
   align-items: center;
-  flex: 0 0 auto;
-  width: 112px;
+  flex: 1;
+  align-self: stretch;
+  min-height: 0;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.center-controls .btn {
+  width: clamp(78px, 22vw, 96px);
+  aspect-ratio: 1;
+  height: auto;
+  max-width: none;
+  padding: 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .btn {
-  width: 100%;
-  max-width: 112px;
-  padding: 10px 8px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
+  border: none;
   text-transform: uppercase;
   transition: transform 0.1s, opacity 0.1s;
   -webkit-tap-highlight-color: transparent;
