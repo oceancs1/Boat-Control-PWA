@@ -22,7 +22,7 @@ export default defineConfig({
         theme_color: '#0a1628',
         background_color: '#0a1628',
         display: 'standalone',
-        orientation: 'landscape',
+        orientation: 'portrait',
         start_url: '/Boat-Control-PWA/',
         scope: '/Boat-Control-PWA/',
         icons: [
