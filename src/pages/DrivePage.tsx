@@ -24,8 +24,9 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
   const fillRef       = useRef<HTMLDivElement>(null)
   const thumbRef      = useRef<HTMLDivElement>(null)
   const valueLabel    = useRef<HTMLDivElement>(null)
-  const isDragging    = useRef(false)
-  const latestValue   = useRef(value)
+  const isDragging       = useRef(false)
+  const activePointerId  = useRef<number | null>(null)
+  const latestValue      = useRef(value)
   const lastCommitted = useRef(value)
   const lastSendMs    = useRef(0)
   const commitTimer   = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -64,8 +65,28 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
     }
   }
 
+  function endDrag(e: React.PointerEvent<HTMLDivElement>) {
+    if (activePointerId.current !== null && e.pointerId !== activePointerId.current) {
+      return
+    }
+    const track = trackRef.current
+    if (track && activePointerId.current !== null &&
+        track.hasPointerCapture(activePointerId.current)) {
+      track.releasePointerCapture(activePointerId.current)
+    }
+    activePointerId.current = null
+    isDragging.current = false
+    if (commitTimer.current) {
+      clearInterval(commitTimer.current)
+      commitTimer.current = null
+    }
+    commit(true)
+  }
+
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     e.preventDefault()
+    e.stopPropagation()
+    activePointerId.current = e.pointerId
     e.currentTarget.setPointerCapture(e.pointerId)
     isDragging.current = true
     const v = valueFromY(e.clientY)
@@ -78,20 +99,15 @@ function VerticalSlider({ value, onChange, label }: SliderProps) {
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!isDragging.current) return
+    if (!isDragging.current || e.pointerId !== activePointerId.current) return
     const v = valueFromY(e.clientY)
     latestValue.current = v
     applyVisuals(v)
     commit()
   }
 
-  function onPointerUp() {
-    isDragging.current = false
-    if (commitTimer.current) {
-      clearInterval(commitTimer.current)
-      commitTimer.current = null
-    }
-    commit(true)
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    endDrag(e)
   }
 
   return (

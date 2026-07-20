@@ -110,6 +110,7 @@
   box-sizing: border-box;
   min-height: 0;
   overflow: hidden;
+  touch-action: none;
 }
 
 /* ── Vertical slider ─────────────────────────────────────────────────────── */
@@ -126,18 +127,21 @@
   padding-bottom: 6px;
   box-sizing: border-box;
   min-height: 0;
+  touch-action: none;
 }
 
+/* 56 px hit area; 14 px visible rail centered inside */
 .vslider__track {
   position: relative;
-  width: 14px;
+  width: 56px;
   flex: 1;
   min-height: 0;
-  /* Half the 52 px thumb hangs below the track at PWM 0 — keep it off the labels */
   margin-bottom: 28px;
+  padding: 0 21px;
+  box-sizing: border-box;
   background: #1a2d4a;
+  background-clip: content-box;
   border-radius: 7px;
-  /* Prevent scrolling while dragging */
   touch-action: none;
   user-select: none;
   cursor: grab;
@@ -151,8 +155,8 @@
 .vslider__fill {
   position: absolute;
   bottom: 0;
-  left: 0;
-  right: 0;
+  left: 21px;
+  right: 21px;
   height: 0;
   background: linear-gradient(to top, #1565c0, #2196f3);
   border-radius: 7px;
