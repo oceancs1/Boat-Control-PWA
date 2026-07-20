@@ -11,6 +11,7 @@ class BoatWebSocketService {
   private ws: WebSocket | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private shouldConnect = false
+  private commandSeq = 0
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
@@ -30,7 +31,13 @@ class BoatWebSocketService {
   /** Send a motor + heading-hold command to the Arduino. */
   sendCommand(leftMotor: number, rightMotor: number, headingHold: boolean): void {
     if (this.ws?.readyState !== WebSocket.OPEN) return
-    this.ws.send(JSON.stringify({ leftMotor, rightMotor, headingHold }))
+    this.commandSeq += 1
+    this.ws.send(JSON.stringify({
+      leftMotor,
+      rightMotor,
+      headingHold,
+      seq: this.commandSeq,
+    }))
   }
 
   // ── Connection management ──────────────────────────────────────────────────
